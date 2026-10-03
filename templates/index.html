@@ -3,243 +3,605 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PDF to Excel</title>
+  <title>PDF to Excel — Table extraction</title>
+  <meta name="description" content="Extract tables from PDF invoices, reports and scanned documents into clean Excel files.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23107c41'/%3E%3Crect x='8' y='8' width='16' height='16' rx='2' fill='none' stroke='white' stroke-width='2.2'/%3E%3Cpath d='M8 14h16M8 19h16M14 8v16' stroke='white' stroke-width='2.2'/%3E%3C/svg%3E">
   <style>
     :root {
-      --bg: #0f172a; --panel: #111c33; --border: #23314f; --text: #e2e8f0;
-      --muted: #94a3b8; --accent: #22c55e; --accent2: #38bdf8; --warn: #f59e0b; --err: #ef4444;
+      --brand: #107c41; --brand-dark: #0b5e31; --brand-soft: #e8f5ee;
+      --bg: #f5f7fa; --surface: #ffffff; --border: #e3e8ef; --border-strong: #cfd7e2;
+      --text: #0f1b2d; --text-2: #3d4b5f; --muted: #6b7a90;
+      --info: #1d4ed8; --info-soft: #eaf1ff; --warn: #b45309; --warn-soft: #fff6e6;
+      --danger: #b42318; --danger-soft: #fef1f0;
+      --radius: 12px; --shadow: 0 1px 2px rgba(16, 24, 40, .05), 0 4px 16px rgba(16, 24, 40, .06);
+      --font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+      --mono: "Cascadia Mono", Consolas, "SFMono-Regular", Menlo, monospace;
     }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
-    main { max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; }
-    h1 { margin: 0 0 6px; font-size: 28px; }
-    .sub { color: var(--muted); margin: 0 0 28px; }
-    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; }
-
-    #drop { border: 2px dashed var(--border); border-radius: 12px; padding: 44px 20px; text-align: center;
-            cursor: pointer; transition: border-color .15s, background .15s; }
-    #drop.over, #drop:hover { border-color: var(--accent2); background: rgba(56,189,248,.06); }
-    #drop strong { color: var(--accent2); }
-    #drop .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
-    #fileName { margin-top: 14px; font-weight: 600; min-height: 1.2em; }
-
-    .actions { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
-    button, .btn { border: 0; border-radius: 10px; padding: 12px 22px; font-size: 15px; font-weight: 600;
-                   cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
-    .primary { background: var(--accent2); color: #04121f; }
-    .success { background: var(--accent); color: #052e12; }
-    .ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
-    button:disabled { opacity: .45; cursor: not-allowed; }
-
-    .pipeline { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; }
-    .step { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
-    .step.active { border-color: var(--accent2); color: var(--accent2); animation: pulse 1.2s infinite; }
-    .step.done { border-color: var(--accent); color: var(--accent); }
-    .arrow { color: var(--border); }
-    @keyframes pulse { 50% { opacity: .5; } }
-
-    .status { margin-top: 16px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
-    .spinner { width: 18px; height: 18px; border: 3px solid var(--border); border-top-color: var(--accent2);
-               border-radius: 50%; animation: spin .8s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .error { color: var(--err); }
-    .warn { color: var(--warn); margin: 4px 0; }
-    .ocr-off { color: var(--warn); font-size: 13px; margin-top: 10px; }
-    .option { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; color: var(--muted); font-size: 13px; cursor: pointer; }
-
-    table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    th, td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
-    th { background: #0c1528; color: var(--muted); font-weight: 600; }
-    .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #1e293b; color: var(--accent2); }
-    .badge.ocr { color: var(--warn); }
-    .table-card { margin-top: 18px; }
-    .table-card h3 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .scroll { overflow-x: auto; }
-    .muted { color: var(--muted); font-size: 13px; }
+    html { -webkit-text-size-adjust: 100%; }
+    body { margin: 0; font-family: var(--font); font-size: 15px; line-height: 1.5; color: var(--text); background: var(--bg); }
+    svg { flex-shrink: 0; }
     .hidden { display: none !important; }
+    .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    :focus-visible { outline: 3px solid rgba(16, 124, 65, .35); outline-offset: 2px; }
+
+    /* Top bar */
+    .topbar { background: var(--surface); border-bottom: 1px solid var(--border); }
+    .topbar-inner { max-width: 1080px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; color: var(--text); text-decoration: none; }
+    .brand-mark { width: 32px; height: 32px; border-radius: 8px; background: var(--brand); display: grid; place-items: center; }
+    .brand-text { display: flex; flex-direction: column; line-height: 1.2; }
+    .brand-sub { font-size: 11.5px; font-weight: 500; color: var(--muted); letter-spacing: .02em; }
+    .topbar-note { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+
+    /* Layout */
+    .container { max-width: 1080px; margin: 0 auto; padding: 48px 24px 64px; }
+    .hero { text-align: center; max-width: 680px; margin: 0 auto 32px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; background: var(--brand-soft);
+               color: var(--brand-dark); font-size: 12.5px; font-weight: 600; letter-spacing: .02em; }
+    .hero h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.15; letter-spacing: -.02em; margin: 16px 0 12px; }
+    .hero p { color: var(--text-2); font-size: 17px; margin: 0; }
+
+    .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .card + .card { margin-top: 20px; }
+    .card-body { padding: 28px; }
+    .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+                 padding: 18px 24px; border-bottom: 1px solid var(--border); }
+    .card-head h2 { font-size: 16px; margin: 0; }
+    .converter { max-width: 720px; margin: 0 auto; }
+
+    /* Drop zone */
+    .dropzone { border: 1.5px dashed var(--border-strong); border-radius: 10px; padding: 40px 24px; text-align: center; cursor: pointer;
+                background: #fafbfc; transition: border-color .15s, background .15s; }
+    .dropzone:hover, .dropzone.over { border-color: var(--brand); background: var(--brand-soft); }
+    .dropzone-icon { width: 52px; height: 52px; margin: 0 auto 14px; border-radius: 50%; background: var(--brand-soft); display: grid; place-items: center; }
+    .dropzone-title { font-weight: 600; font-size: 16px; }
+    .dropzone-title span { color: var(--brand); }
+    .dropzone-hint { color: var(--muted); font-size: 13px; margin-top: 4px; }
+
+    .file { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--border); border-radius: 10px; background: #fafbfc; }
+    .file-icon { width: 40px; height: 40px; border-radius: 8px; background: var(--danger-soft); display: grid; place-items: center; }
+    .file-meta { flex: 1; min-width: 0; }
+    .file-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .file-size { color: var(--muted); font-size: 13px; }
+    .icon-btn { border: 0; background: transparent; color: var(--muted); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; display: grid; place-items: center; }
+    .icon-btn:hover { background: #eef1f5; color: var(--text); }
+
+    /* Option switch */
+    .option { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .option-title { font-weight: 600; font-size: 14px; }
+    .option-help { color: var(--muted); font-size: 13px; }
+    .switch { position: relative; width: 42px; height: 24px; flex-shrink: 0; }
+    .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; z-index: 1; }
+    .switch-track { position: absolute; inset: 0; border-radius: 999px; background: var(--border-strong); transition: background .15s; }
+    .switch-track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff;
+                           box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .15s; }
+    .switch input:checked + .switch-track { background: var(--brand); }
+    .switch input:checked + .switch-track::after { transform: translateX(18px); }
+    .switch input:focus-visible + .switch-track { outline: 3px solid rgba(16, 124, 65, .35); outline-offset: 2px; }
+
+    /* Buttons */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; border-radius: 8px;
+           padding: 11px 20px; font: 600 15px/1.2 var(--font); cursor: pointer; text-decoration: none; transition: background .15s, border-color .15s, box-shadow .15s; }
+    .btn-primary { background: var(--brand); color: #fff; box-shadow: 0 1px 2px rgba(16, 24, 40, .1); }
+    .btn-primary:hover { background: var(--brand-dark); }
+    .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+    .btn-secondary:hover { background: #f3f5f8; }
+    .btn-block { width: 100%; margin-top: 24px; padding: 13px 20px; }
+    .btn:disabled { background: #c9d2dc; color: #fff; cursor: not-allowed; box-shadow: none; }
+
+    /* Alerts */
+    .alert { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 8px; font-size: 14px; margin-top: 16px; }
+    .alert-danger { background: var(--danger-soft); color: var(--danger); }
+    .alert-warn { background: var(--warn-soft); color: var(--warn); }
+    .alert-info { background: var(--info-soft); color: var(--info); }
+
+    /* Progress */
+    .progress { padding: 4px 0 0; }
+    .progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 10px; }
+    .progress-title { font-weight: 600; }
+    .progress-pct { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+    .bar { height: 8px; border-radius: 999px; background: #edf1f5; overflow: hidden; }
+    .bar-fill { height: 100%; width: 0; background: var(--brand); border-radius: inherit; transition: width .4s ease; }
+    .steps { list-style: none; margin: 22px 0 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .steps li { display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; font-size: 12.5px; color: var(--muted); }
+    .step-dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--surface);
+                display: grid; place-items: center; font-weight: 700; font-size: 12px; color: var(--muted); }
+    .steps li.active { color: var(--text); font-weight: 600; }
+    .steps li.active .step-dot { border-color: var(--brand); color: var(--brand); box-shadow: 0 0 0 4px var(--brand-soft); }
+    .steps li.done .step-dot { border-color: var(--brand); background: var(--brand); color: #fff; }
+    .progress-note { color: var(--muted); font-size: 13px; text-align: center; margin: 18px 0 0; }
+
+    /* Results */
+    .result-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .success-icon { width: 48px; height: 48px; border-radius: 50%; background: var(--brand-soft); display: grid; place-items: center; }
+    .result-title { flex: 1; min-width: 220px; }
+    .result-title h2 { margin: 0; font-size: 20px; }
+    .result-title p { margin: 2px 0 0; color: var(--muted); font-size: 14px; overflow-wrap: anywhere; }
+    .result-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 24px; }
+    .stat { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; background: #fafbfc; }
+    .stat-label { color: var(--muted); font-size: 12.5px; font-weight: 500; }
+    .stat-value { font-size: 22px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600;
+            background: #eef1f5; color: var(--text-2); white-space: nowrap; }
+    .chip-brand { background: var(--brand-soft); color: var(--brand-dark); }
+    .chip-warn { background: var(--warn-soft); color: var(--warn); }
+    .chip-muted { background: #f1f3f6; color: var(--muted); }
+    .meta { color: var(--muted); font-size: 13px; }
+
+    .block + .block { border-top: 1px solid var(--border); }
+    .block-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 14px 24px; }
+    .block-title { font-weight: 600; font-size: 14px; }
+    .sheet-scroll { overflow: auto; max-height: 460px; border-top: 1px solid var(--border); }
+    table.sheet { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: 13px; }
+    .sheet th, .sheet td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 7px 12px; text-align: left;
+                           white-space: nowrap; max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
+    .sheet thead th { position: sticky; top: 0; z-index: 2; background: #f3f5f8; color: var(--muted); font-weight: 600; font-size: 12px; text-align: center; }
+    .sheet .row-no { position: sticky; left: 0; z-index: 1; background: #f3f5f8; color: var(--muted); font-size: 12px; text-align: center;
+                     width: 1%; min-width: 44px; }
+    .sheet thead th.corner { left: 0; z-index: 3; }
+    .sheet tr.header-row td:not(.row-no) { font-weight: 700; background: #fbfcfd; }
+    .sheet tbody tr:hover td:not(.row-no) { background: #f7faf8; }
+    .sheet td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    .sheet td.empty { background: #fcfcfd; }
+    .more { padding: 12px 24px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); }
+
+    details.pages > summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 24px; }
+    details.pages > summary::-webkit-details-marker { display: none; }
+    details.pages > summary h2 { font-size: 16px; margin: 0; }
+    details.pages .chevron { transition: transform .2s; color: var(--muted); }
+    details.pages[open] .chevron { transform: rotate(180deg); }
+    table.list { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .list th, .list td { padding: 11px 24px; text-align: left; border-top: 1px solid var(--border); }
+    .list th { color: var(--muted); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; background: #fafbfc; }
+
+    /* How it works */
+    .features { margin-top: 56px; }
+    .features h2 { text-align: center; font-size: 20px; margin: 0 0 20px; }
+    .feature-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+    .feature { padding: 22px; }
+    .feature-icon { width: 40px; height: 40px; border-radius: 10px; background: var(--brand-soft); display: grid; place-items: center; margin-bottom: 14px; }
+    .feature h3 { font-size: 15px; margin: 0 0 6px; }
+    .feature p { margin: 0; color: var(--text-2); font-size: 14px; }
+
+    footer { border-top: 1px solid var(--border); background: var(--surface); }
+    .footer-inner { max-width: 1080px; margin: 0 auto; padding: 20px 24px; display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+                    color: var(--muted); font-size: 13px; }
+
+    @media (max-width: 640px) {
+      .container { padding: 32px 16px 48px; }
+      .card-body { padding: 20px; }
+      .topbar-note span { display: none; }
+      .steps li span:not(.step-dot) { display: none; }
+      .steps li.active span:not(.step-dot) { display: block; }
+      .result-actions, .result-actions .btn { width: 100%; }
+      .list th, .list td { padding: 10px 16px; }
+    }
+    @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
   </style>
 </head>
 <body>
-<main>
-  <h1>PDF &rarr; Excel</h1>
-  <p class="sub">Upload a PDF. Tables are detected (text PDFs via Camelot / pdfplumber, scanned PDFs via OCR),
-     cleaned, and exported to an .xlsx file.</p>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 10h16M4 15h16M10 4v16"/></svg>
+      </span>
+      <span class="brand-text">
+        PDF to Excel
+        <span class="brand-sub">Made in Algeria</span>
+      </span>
+    </a>
+    <div class="topbar-note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+      <span>Private &middot; files are deleted after 1 hour</span>
+    </div>
+  </div>
+</header>
 
-  <section class="panel">
-    <div id="drop">
-      <div><strong>Click to choose</strong> or drag &amp; drop a PDF here</div>
-      <div class="hint">PDF only &middot; max {{ max_mb }} MB</div>
-      <input id="file" type="file" accept="application/pdf,.pdf" hidden>
-    </div>
-    <div id="fileName"></div>
-    {% if not ocr_available %}
-      <div class="ocr-off">Tesseract OCR is not installed &mdash; scanned (image-only) pages will be skipped.</div>
-    {% endif %}
-    <label class="option">
-      <input id="allTables" type="checkbox">
-      Include every table found (by default only the main table is kept &mdash; totals boxes and small side tables are left out)
-    </label>
-    <div class="actions">
-      <button id="convertBtn" class="primary" disabled>Convert to Excel</button>
-      <button id="resetBtn" class="ghost hidden">Convert another file</button>
-    </div>
-    <div id="status" class="status hidden"></div>
+<main class="container">
+  <section class="hero">
+    <span class="eyebrow">Invoices &middot; Reports &middot; Scanned documents</span>
+    <h1>Convert PDF tables to Excel</h1>
+    <p>Upload a PDF and get only the table, exactly as it appears in the document, in a clean Excel sheet.</p>
   </section>
 
-  <section class="panel">
-    <div class="pipeline" id="pipeline">
-      <span class="step" data-step="upload">Upload PDF</span><span class="arrow">&rarr;</span>
-      <span class="step" data-step="detect">Text or scanned?</span><span class="arrow">&rarr;</span>
-      <span class="step" data-step="extract">Camelot / pdfplumber &middot; OCR</span><span class="arrow">&rarr;</span>
-      <span class="step" data-step="tables">Detect tables</span><span class="arrow">&rarr;</span>
-      <span class="step" data-step="clean">Clean data</span><span class="arrow">&rarr;</span>
-      <span class="step" data-step="excel">Excel XLSX</span>
-    </div>
-  </section>
+  <!-- Upload & progress -->
+  <section class="card converter" id="converter" aria-labelledby="converterTitle">
+    <div class="card-body">
+      <h2 id="converterTitle" class="sr-only">Upload a PDF</h2>
 
-  <section id="results" class="panel hidden">
-    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
-      <div>
-        <h2 style="margin:0 0 4px;font-size:20px">Result</h2>
-        <div id="resultMeta" class="muted"></div>
+      <div id="uploadStep">
+        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-describedby="dropHint">
+          <div class="dropzone-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#107c41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M20 16v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3"/></svg>
+          </div>
+          <div class="dropzone-title"><span>Choose a PDF</span> or drag it here</div>
+          <div class="dropzone-hint" id="dropHint">PDF files up to {{ max_mb }} MB &middot; text and scanned documents</div>
+          <input id="fileInput" type="file" accept="application/pdf,.pdf" hidden>
+        </div>
+
+        <div id="fileCard" class="file hidden">
+          <div class="file-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b42318" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>
+          </div>
+          <div class="file-meta">
+            <div class="file-name" id="fileName"></div>
+            <div class="file-size" id="fileSize"></div>
+          </div>
+          <button type="button" class="icon-btn" id="removeFile" aria-label="Remove file">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+
+        <div class="option">
+          <div>
+            <div class="option-title" id="allTablesLabel">Include every table</div>
+            <div class="option-help">Off: only the main table is kept (totals boxes and small side tables are left out).</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="allTables" aria-labelledby="allTablesLabel">
+            <span class="switch-track"></span>
+          </label>
+        </div>
+
+        {% if not ocr_available %}
+        <div class="alert alert-warn" role="note">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+          <div>OCR is not available on this server &mdash; scanned (image-only) pages will be skipped.</div>
+        </div>
+        {% endif %}
+
+        <button type="button" class="btn btn-primary btn-block" id="convertBtn" disabled>
+          Convert to Excel
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
       </div>
-      <a id="downloadBtn" class="btn success" href="#">&#8681; Download Excel</a>
-    </div>
-    <div id="warnings" style="margin-top:12px"></div>
 
-    <h3 style="margin:22px 0 8px;font-size:15px">Pages</h3>
-    <div class="scroll">
-      <table>
-        <thead><tr><th>Page</th><th>Text layer</th><th>Method</th><th>Tables</th></tr></thead>
-        <tbody id="pagesBody"></tbody>
-      </table>
+      <div id="progress" class="progress hidden" aria-live="polite">
+        <div class="progress-head">
+          <div class="progress-title" id="progressTitle">Uploading&hellip;</div>
+          <div class="progress-pct" id="progressPct">0%</div>
+        </div>
+        <div class="bar" role="progressbar" aria-labelledby="progressTitle" aria-valuemin="0" aria-valuemax="100" id="progressBar">
+          <div class="bar-fill" id="progressFill"></div>
+        </div>
+        <ol class="steps" id="steps">
+          <li><span class="step-dot">1</span><span>Upload</span></li>
+          <li><span class="step-dot">2</span><span>Analyse pages</span></li>
+          <li><span class="step-dot">3</span><span>Detect tables</span></li>
+          <li><span class="step-dot">4</span><span>Clean data</span></li>
+          <li><span class="step-dot">5</span><span>Build Excel</span></li>
+        </ol>
+        <p class="progress-note">Scanned documents are read with OCR and can take up to a minute.</p>
+      </div>
+
+      <div id="error" class="alert alert-danger hidden" role="alert">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <div id="errorText"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="results" class="hidden" aria-live="polite">
+    <div class="card">
+      <div class="card-body">
+        <div class="result-head">
+          <div class="success-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#107c41" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+          </div>
+          <div class="result-title">
+            <h2 id="resultHeading">Your Excel file is ready</h2>
+            <p id="resultFile"></p>
+          </div>
+          <div class="result-actions">
+            <button type="button" class="btn btn-secondary" id="resetBtn">Convert another file</button>
+            <a class="btn btn-primary" id="downloadBtn" href="#">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v12M7 11l5 5 5-5"/><path d="M5 20h14"/></svg>
+              Download Excel
+            </a>
+          </div>
+        </div>
+        <div class="stats" id="stats"></div>
+        <div id="warnings"></div>
+      </div>
     </div>
 
-    <div id="tables"></div>
+    <div class="card">
+      <div class="card-head">
+        <h2>Data preview</h2>
+        <span class="meta" id="previewMeta"></span>
+      </div>
+      <div id="preview"></div>
+    </div>
+
+    <details class="card pages">
+      <summary>
+        <h2>Page analysis</h2>
+        <svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </summary>
+      <div style="overflow-x:auto">
+        <table class="list">
+          <thead><tr><th>Page</th><th>Content</th><th>Detection</th><th>Tables</th></tr></thead>
+          <tbody id="pagesBody"></tbody>
+        </table>
+      </div>
+    </details>
+  </section>
+
+  <!-- How it works -->
+  <section class="features" id="features">
+    <h2>How it works</h2>
+    <div class="feature-grid">
+      <div class="card feature">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#107c41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h4"/></svg>
+        </div>
+        <h3>Text or scanned</h3>
+        <p>Each page is checked: digital PDFs are read directly, scanned pages go through OCR.</p>
+      </div>
+      <div class="card feature">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#107c41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg>
+        </div>
+        <h3>Only the table</h3>
+        <p>Letterheads, totals and footers are left out. Tables spanning several pages are joined.</p>
+      </div>
+      <div class="card feature">
+        <div class="feature-icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#107c41" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16M7 15l3-4 3 3 4-6"/></svg>
+        </div>
+        <h3>Ready for Excel</h3>
+        <p>Values look exactly like the PDF, and numbers stay numbers so totals and formulas work.</p>
+      </div>
+    </div>
   </section>
 </main>
 
+<footer>
+  <div class="footer-inner">
+    <span>PDF to Excel</span>
+    <span>Uploaded files are processed on this server and deleted after 1 hour.</span>
+  </div>
+</footer>
+
 <script>
-  const drop = document.getElementById("drop");
-  const fileInput = document.getElementById("file");
-  const fileName = document.getElementById("fileName");
-  const convertBtn = document.getElementById("convertBtn");
-  const resetBtn = document.getElementById("resetBtn");
-  const statusEl = document.getElementById("status");
-  const results = document.getElementById("results");
-  const steps = [...document.querySelectorAll(".step")];
+  const $ = (id) => document.getElementById(id);
+  const MAX_BYTES = {{ max_mb }} * 1024 * 1024;
+  const PREVIEW_ROWS = 10;
+  const STEP_TITLES = ["Uploading…", "Analysing pages…", "Detecting tables…", "Cleaning data…", "Building Excel…"];
+  const METHOD_LABELS = {
+    "ruled-rows": "Ruled rows",
+    "camelot-lattice": "Grid lines",
+    "pdfplumber": "Table lines",
+    "camelot-stream": "Text alignment",
+    "ocr-table": "OCR",
+    "none": "No table found",
+    "skipped (no OCR)": "Skipped (no OCR)",
+  };
+
   let selectedFile = null;
   let stepTimer = null;
 
   const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g,
     (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
-
-  function setSteps(activeIndex, allDone = false) {
-    steps.forEach((s, i) => {
-      s.classList.toggle("done", allDone || i < activeIndex);
-      s.classList.toggle("active", !allDone && i === activeIndex);
-    });
+  const methodLabel = (m) => METHOD_LABELS[m] || m;
+  const methodChip = (m) => `<span class="chip ${m.startsWith("ocr") ? "chip-warn" : m === "none" || m.startsWith("skipped") ? "chip-muted" : "chip-brand"}">${escapeHtml(methodLabel(m))}</span>`;
+  const formatSize = (bytes) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+  // Same rule as excel_number() on the server: only these cells become numbers (right-aligned) in Excel.
+  const NUMBER_TEXT = /^(\()?(-)?([$€£¥])?\s?(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?(%)?(\))?$/;
+  function isNumeric(value) {
+    if (typeof value === "number") return true;
+    const m = NUMBER_TEXT.exec(String(value ?? ""));
+    if (!m || Boolean(m[1]) !== Boolean(m[7]) || (m[1] && m[2])) return false;
+    const digits = m[4].replace(/,/g, "");
+    return !(digits.length > 1 && digits.startsWith("0")) && digits.length + (m[5] || "").length <= 15;
   }
+
+  function columnLetter(index) {
+    let letters = "";
+    for (let n = index + 1; n > 0; n = Math.floor((n - 1) / 26)) letters = String.fromCharCode(65 + ((n - 1) % 26)) + letters;
+    return letters;
+  }
+
+  /* ---------- file selection ---------- */
+  function showError(message) {
+    $("errorText").textContent = message;
+    $("error").classList.remove("hidden");
+  }
+  function clearError() { $("error").classList.add("hidden"); }
 
   function chooseFile(file) {
     if (!file) return;
-    if (!file.name.toLowerCase().endsWith(".pdf")) {
-      showStatus("Please choose a .pdf file.", "error");
-      return;
-    }
+    clearError();
+    if (!file.name.toLowerCase().endsWith(".pdf")) return showError("Please choose a PDF file (.pdf).");
+    if (file.size > MAX_BYTES) return showError(`This file is ${formatSize(file.size)}. The maximum size is {{ max_mb }} MB.`);
     selectedFile = file;
-    fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-    convertBtn.disabled = false;
-    statusEl.classList.add("hidden");
+    $("fileName").textContent = file.name;
+    $("fileSize").textContent = `${formatSize(file.size)} · PDF document`;
+    $("dropzone").classList.add("hidden");
+    $("fileCard").classList.remove("hidden");
+    $("convertBtn").disabled = false;
   }
 
-  function showStatus(html, kind = "", spinning = false) {
-    statusEl.className = "status " + kind;
-    statusEl.innerHTML = (spinning ? '<div class="spinner"></div>' : "") + `<span>${html}</span>`;
+  function resetFile() {
+    selectedFile = null;
+    $("fileInput").value = "";
+    $("fileCard").classList.add("hidden");
+    $("dropzone").classList.remove("hidden");
+    $("convertBtn").disabled = true;
+    clearError();
   }
 
-  drop.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => chooseFile(fileInput.files[0]));
-  ["dragenter", "dragover"].forEach((e) => drop.addEventListener(e, (ev) => {
-    ev.preventDefault(); drop.classList.add("over");
-  }));
-  ["dragleave", "drop"].forEach((e) => drop.addEventListener(e, (ev) => {
-    ev.preventDefault(); drop.classList.remove("over");
-  }));
-  drop.addEventListener("drop", (ev) => chooseFile(ev.dataTransfer.files[0]));
-
-  resetBtn.addEventListener("click", () => {
-    selectedFile = null; fileInput.value = ""; fileName.textContent = "";
-    convertBtn.disabled = true; resetBtn.classList.add("hidden");
-    results.classList.add("hidden"); statusEl.classList.add("hidden"); setSteps(-1);
+  const dropzone = $("dropzone");
+  dropzone.addEventListener("click", () => $("fileInput").click());
+  dropzone.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("fileInput").click(); }
   });
+  $("fileInput").addEventListener("change", (e) => chooseFile(e.target.files[0]));
+  ["dragenter", "dragover"].forEach((t) => dropzone.addEventListener(t, (e) => { e.preventDefault(); dropzone.classList.add("over"); }));
+  ["dragleave", "drop"].forEach((t) => dropzone.addEventListener(t, (e) => { e.preventDefault(); dropzone.classList.remove("over"); }));
+  dropzone.addEventListener("drop", (e) => chooseFile(e.dataTransfer.files[0]));
+  $("removeFile").addEventListener("click", resetFile);
 
-  convertBtn.addEventListener("click", async () => {
+  /* ---------- progress ---------- */
+  function setProgress(stepIndex, percent, allDone = false) {
+    [...$("steps").children].forEach((li, i) => {
+      li.classList.toggle("done", allDone || i < stepIndex);
+      li.classList.toggle("active", !allDone && i === stepIndex);
+      li.querySelector(".step-dot").innerHTML = allDone || i < stepIndex
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
+        : String(i + 1);
+    });
+    const pct = Math.round(percent);
+    $("progressTitle").textContent = allDone ? "Done" : STEP_TITLES[stepIndex];
+    $("progressPct").textContent = `${pct}%`;
+    $("progressFill").style.width = `${pct}%`;
+    $("progressBar").setAttribute("aria-valuenow", pct);
+  }
+
+  function upload(form, onUploadProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", "/api/convert");
+      xhr.responseType = "json";
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) onUploadProgress(e.loaded / e.total); };
+      xhr.upload.onload = () => onUploadProgress(1);
+      xhr.onload = () => {
+        const data = xhr.response || {};
+        if (xhr.status >= 200 && xhr.status < 300) resolve(data);
+        else reject(new Error(data.error || `The server returned an error (${xhr.status}).`));
+      };
+      xhr.onerror = () => reject(new Error("Network error — please check your connection and try again."));
+      xhr.send(form);
+    });
+  }
+
+  $("convertBtn").addEventListener("click", async () => {
     if (!selectedFile) return;
-    convertBtn.disabled = true;
-    results.classList.add("hidden");
-    showStatus("Processing&hellip; scanned PDFs can take a while because of OCR.", "", true);
+    clearError();
+    $("uploadStep").classList.add("hidden");
+    $("progress").classList.remove("hidden");
+    setProgress(0, 0);
 
-    // The server runs the whole pipeline in one request; animate the steps meanwhile.
-    let current = 0;
-    setSteps(current);
-    stepTimer = setInterval(() => { if (current < steps.length - 2) setSteps(++current); }, 1500);
+    // The server converts in a single request, so steps 2-4 advance on a timer while it works.
+    let step = 0;
+    let percent = 0;
+    const startProcessing = () => {
+      if (stepTimer) return;
+      step = 1; percent = 25; setProgress(step, percent);
+      stepTimer = setInterval(() => {
+        percent += (92 - percent) * 0.18;
+        if (step < 3 && percent > 25 + step * 20) step += 1;
+        setProgress(step, percent);
+      }, 700);
+    };
 
     const form = new FormData();
     form.append("file", selectedFile);
-    if (document.getElementById("allTables").checked) form.append("all_tables", "1");
+    if ($("allTables").checked) form.append("all_tables", "1");
+
     try {
-      const res = await fetch("/api/convert", { method: "POST", body: form });
-      const data = await res.json().catch(() => ({ error: `Server error (${res.status})` }));
-      clearInterval(stepTimer);
-      if (!res.ok) throw new Error(data.error || `Server error (${res.status})`);
-      setSteps(0, true);
-      statusEl.classList.add("hidden");
-      renderResults(data);
-      resetBtn.classList.remove("hidden");
+      const data = await upload(form, (fraction) => {
+        if (fraction >= 1) startProcessing();
+        else setProgress(0, fraction * 25);
+      });
+      clearInterval(stepTimer); stepTimer = null;
+      setProgress(4, 100, true);
+      setTimeout(() => renderResults(data), 350);
     } catch (err) {
-      clearInterval(stepTimer);
-      setSteps(-1);
-      showStatus(escapeHtml(err.message), "error");
-      convertBtn.disabled = false;
+      clearInterval(stepTimer); stepTimer = null;
+      $("progress").classList.add("hidden");
+      $("uploadStep").classList.remove("hidden");
+      showError(err.message);
     }
   });
 
+  $("resetBtn").addEventListener("click", () => {
+    $("results").classList.add("hidden");
+    $("progress").classList.add("hidden");
+    $("uploadStep").classList.remove("hidden");
+    $("converter").classList.remove("hidden");
+    resetFile();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  /* ---------- results ---------- */
+  function renderBlock(block, showTitle) {
+    const columns = block.preview.columns;
+    let rowNumber = block.start_row;
+    const headerRow = block.has_header
+      ? `<tr class="header-row"><td class="row-no">${rowNumber++}</td>${columns.map((c) => `<td title="${escapeHtml(c)}">${escapeHtml(c)}</td>`).join("")}</tr>`
+      : "";
+    const bodyRows = block.preview.rows.map((row) => `<tr><td class="row-no">${rowNumber++}</td>${row.map((v) => {
+      const cls = v == null || v === "" ? "empty" : isNumeric(v) ? "num" : "";
+      return `<td class="${cls}" title="${escapeHtml(v)}">${escapeHtml(v)}</td>`;
+    }).join("")}</tr>`).join("");
+    const pages = block.pages.length > 1 ? `Pages ${block.pages[0]}–${block.pages[block.pages.length - 1]}` : `Page ${block.pages[0]}`;
+    const remaining = block.rows - block.preview.rows.length;
+
+    return `
+      <div class="block">
+        ${showTitle ? `<div class="block-head"><span class="block-title">${pages}</span>${block.methods.map(methodChip).join("")}
+          <span class="meta">${block.rows} rows × ${block.cols} columns</span></div>` : ""}
+        <div class="sheet-scroll">
+          <table class="sheet">
+            <thead><tr><th class="corner row-no"></th>${columns.map((_, i) => `<th>${columnLetter(i)}</th>`).join("")}</tr></thead>
+            <tbody>${headerRow}${bodyRows}</tbody>
+          </table>
+        </div>
+        ${remaining > 0 ? `<div class="more">+ ${remaining} more row${remaining > 1 ? "s" : ""} in the Excel file</div>` : ""}
+      </div>`;
+  }
+
   function renderResults(data) {
-    document.getElementById("downloadBtn").href = data.download_url;
-    document.getElementById("downloadBtn").setAttribute("download", data.filename);
-    document.getElementById("resultMeta").textContent =
-      `${data.table_count} table(s) from ${data.pages.length} page(s) in ${data.seconds}s → ` +
-      `${data.filename}, all on one sheet "${data.sheet}"`;
+    const totalRows = data.blocks.reduce((sum, b) => sum + b.rows, 0);
+    const maxCols = data.blocks.reduce((max, b) => Math.max(max, b.cols), 0);
+    const found = data.blocks.length > 0;
 
-    document.getElementById("warnings").innerHTML =
-      data.warnings.map((w) => `<div class="warn">&#9888; ${escapeHtml(w)}</div>`).join("");
+    $("resultHeading").textContent = found ? "Your Excel file is ready" : "No table found in this PDF";
+    $("resultFile").textContent = `${data.filename} · sheet “${data.sheet}”`;
+    $("downloadBtn").href = data.download_url;
+    $("downloadBtn").setAttribute("download", data.filename);
 
-    document.getElementById("pagesBody").innerHTML = data.pages.map((p) => `
+    const stats = [
+      ["Tables", data.blocks.length],
+      ["Rows", totalRows],
+      ["Columns", maxCols],
+      ["Pages", data.pages.length],
+      ["Processing time", `${data.seconds}s`],
+    ];
+    $("stats").innerHTML = stats.map(([label, value]) =>
+      `<div class="stat"><div class="stat-label">${label}</div><div class="stat-value">${escapeHtml(value)}</div></div>`).join("");
+
+    $("warnings").innerHTML = data.warnings.map((w) => `
+      <div class="alert alert-warn" role="note">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
+        <div>${escapeHtml(w)}</div>
+      </div>`).join("");
+
+    $("previewMeta").textContent = found
+      ? `Exactly as in the Excel sheet · first ${PREVIEW_ROWS} rows of each table`
+      : "";
+    $("preview").innerHTML = found
+      ? data.blocks.map((b) => renderBlock(b, data.blocks.length > 1 || b.pages.length > 1)).join("")
+      : `<div class="card-body meta">The document was analysed but no table was detected. Try enabling “Include every table”.</div>`;
+
+    $("pagesBody").innerHTML = data.pages.map((p) => `
       <tr>
         <td>${p.page}</td>
-        <td>${p.has_text ? "Yes" : "No (scanned &rarr; OCR)"}</td>
-        <td><span class="badge ${p.has_text ? "" : "ocr"}">${escapeHtml(p.method)}</span></td>
+        <td>${p.has_text ? "Text layer" : "Scanned image"}</td>
+        <td>${methodChip(p.method)}</td>
         <td>${p.tables}</td>
       </tr>`).join("");
 
-    const pageLabel = (pages) => pages.length > 1
-      ? `Pages ${pages[0]}–${pages[pages.length - 1]}` : `Page ${pages[0]}`;
-
-    document.getElementById("tables").innerHTML = data.blocks.map((t) => `
-      <div class="table-card">
-        <h3>${pageLabel(t.pages)}
-          ${t.methods.map((m) => `<span class="badge ${m.startsWith("ocr") ? "ocr" : ""}">${escapeHtml(m)}</span>`).join("")}
-          <span class="muted">starts at row ${t.start_row} &middot; ${t.rows} rows &times; ${t.cols} cols${t.rows > 10 ? " · showing first 10" : ""}</span>
-        </h3>
-        <div class="scroll"><table>
-          ${t.has_header ? `<thead><tr>${t.preview.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>` : ""}
-          <tbody>${t.preview.rows.map((r) =>
-            `<tr>${r.map((v) => `<td>${escapeHtml(v)}</td>`).join("")}</tr>`).join("")}</tbody>
-        </table></div>
-      </div>`).join("");
-
-    results.classList.remove("hidden");
+    $("converter").classList.add("hidden");
+    $("results").classList.remove("hidden");
+    $("results").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 </script>
 </body>

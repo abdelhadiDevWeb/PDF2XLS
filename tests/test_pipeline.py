@@ -445,7 +445,8 @@ class WebTests(unittest.TestCase):
     def test_index(self):
         res = self.client.get("/")
         self.assertEqual(res.status_code, 200)
-        self.assertIn(b"PDF &rarr; Excel", res.data)
+        self.assertIn(b"Convert PDF tables to Excel", res.data)
+        self.assertIn(b"const MAX_BYTES = 50 * 1024 * 1024;", res.data)
 
     def test_upload_and_download(self):
         res = self.client.post(

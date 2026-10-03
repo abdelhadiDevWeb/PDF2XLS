@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PDF to Excel</title>
+  <style>
+    :root {
+      --bg: #0f172a; --panel: #111c33; --border: #23314f; --text: #e2e8f0;
+      --muted: #94a3b8; --accent: #22c55e; --accent2: #38bdf8; --warn: #f59e0b; --err: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    main { max-width: 960px; margin: 0 auto; padding: 40px 20px 80px; }
+    h1 { margin: 0 0 6px; font-size: 28px; }
+    .sub { color: var(--muted); margin: 0 0 28px; }
+    .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 24px; margin-bottom: 20px; }
+
+    #drop { border: 2px dashed var(--border); border-radius: 12px; padding: 44px 20px; text-align: center;
+            cursor: pointer; transition: border-color .15s, background .15s; }
+    #drop.over, #drop:hover { border-color: var(--accent2); background: rgba(56,189,248,.06); }
+    #drop strong { color: var(--accent2); }
+    #drop .hint { color: var(--muted); font-size: 13px; margin-top: 8px; }
+    #fileName { margin-top: 14px; font-weight: 600; min-height: 1.2em; }
+
+    .actions { display: flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+    button, .btn { border: 0; border-radius: 10px; padding: 12px 22px; font-size: 15px; font-weight: 600;
+                   cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+    .primary { background: var(--accent2); color: #04121f; }
+    .success { background: var(--accent); color: #052e12; }
+    .ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+
+    .pipeline { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; }
+    .step { padding: 7px 12px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+    .step.active { border-color: var(--accent2); color: var(--accent2); animation: pulse 1.2s infinite; }
+    .step.done { border-color: var(--accent); color: var(--accent); }
+    .arrow { color: var(--border); }
+    @keyframes pulse { 50% { opacity: .5; } }
+
+    .status { margin-top: 16px; color: var(--muted); display: flex; align-items: center; gap: 10px; }
+    .spinner { width: 18px; height: 18px; border: 3px solid var(--border); border-top-color: var(--accent2);
+               border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error { color: var(--err); }
+    .warn { color: var(--warn); margin: 4px 0; }
+    .ocr-off { color: var(--warn); font-size: 13px; margin-top: 10px; }
+    .option { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; color: var(--muted); font-size: 13px; cursor: pointer; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #0c1528; color: var(--muted); font-weight: 600; }
+    .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #1e293b; color: var(--accent2); }
+    .badge.ocr { color: var(--warn); }
+    .table-card { margin-top: 18px; }
+    .table-card h3 { margin: 0 0 8px; font-size: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .scroll { overflow-x: auto; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>PDF &rarr; Excel</h1>
+  <p class="sub">Upload a PDF. Tables are detected (text PDFs via Camelot / pdfplumber, scanned PDFs via OCR),
+     cleaned, and exported to an .xlsx file.</p>
+
+  <section class="panel">
+    <div id="drop">
+      <div><strong>Click to choose</strong> or drag &amp; drop a PDF here</div>
+      <div class="hint">PDF only &middot; max {{ max_mb }} MB</div>
+      <input id="file" type="file" accept="application/pdf,.pdf" hidden>
+    </div>
+    <div id="fileName"></div>
+    {% if not ocr_available %}
+      <div class="ocr-off">Tesseract OCR is not installed &mdash; scanned (image-only) pages will be skipped.</div>
+    {% endif %}
+    <label class="option">
+      <input id="allTables" type="checkbox">
+      Include every table found (by default only the main table is kept &mdash; totals boxes and small side tables are left out)
+    </label>
+    <div class="actions">
+      <button id="convertBtn" class="primary" disabled>Convert to Excel</button>
+      <button id="resetBtn" class="ghost hidden">Convert another file</button>
+    </div>
+    <div id="status" class="status hidden"></div>
+  </section>
+
+  <section class="panel">
+    <div class="pipeline" id="pipeline">
+      <span class="step" data-step="upload">Upload PDF</span><span class="arrow">&rarr;</span>
+      <span class="step" data-step="detect">Text or scanned?</span><span class="arrow">&rarr;</span>
+      <span class="step" data-step="extract">Camelot / pdfplumber &middot; OCR</span><span class="arrow">&rarr;</span>
+      <span class="step" data-step="tables">Detect tables</span><span class="arrow">&rarr;</span>
+      <span class="step" data-step="clean">Clean data</span><span class="arrow">&rarr;</span>
+      <span class="step" data-step="excel">Excel XLSX</span>
+    </div>
+  </section>
+
+  <section id="results" class="panel hidden">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <div>
+        <h2 style="margin:0 0 4px;font-size:20px">Result</h2>
+        <div id="resultMeta" class="muted"></div>
+      </div>
+      <a id="downloadBtn" class="btn success" href="#">&#8681; Download Excel</a>
+    </div>
+    <div id="warnings" style="margin-top:12px"></div>
+
+    <h3 style="margin:22px 0 8px;font-size:15px">Pages</h3>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Page</th><th>Text layer</th><th>Method</th><th>Tables</th></tr></thead>
+        <tbody id="pagesBody"></tbody>
+      </table>
+    </div>
+
+    <div id="tables"></div>
+  </section>
+</main>
+
+<script>
+  const drop = document.getElementById("drop");
+  const fileInput = document.getElementById("file");
+  const fileName = document.getElementById("fileName");
+  const convertBtn = document.getElementById("convertBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const statusEl = document.getElementById("status");
+  const results = document.getElementById("results");
+  const steps = [...document.querySelectorAll(".step")];
+  let selectedFile = null;
+  let stepTimer = null;
+
+  const escapeHtml = (v) => String(v ?? "").replace(/[&<>"']/g,
+    (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+
+  function setSteps(activeIndex, allDone = false) {
+    steps.forEach((s, i) => {
+      s.classList.toggle("done", allDone || i < activeIndex);
+      s.classList.toggle("active", !allDone && i === activeIndex);
+    });
+  }
+
+  function chooseFile(file) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      showStatus("Please choose a .pdf file.", "error");
+      return;
+    }
+    selectedFile = file;
+    fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
+    convertBtn.disabled = false;
+    statusEl.classList.add("hidden");
+  }
+
+  function showStatus(html, kind = "", spinning = false) {
+    statusEl.className = "status " + kind;
+    statusEl.innerHTML = (spinning ? '<div class="spinner"></div>' : "") + `<span>${html}</span>`;
+  }
+
+  drop.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => chooseFile(fileInput.files[0]));
+  ["dragenter", "dragover"].forEach((e) => drop.addEventListener(e, (ev) => {
+    ev.preventDefault(); drop.classList.add("over");
+  }));
+  ["dragleave", "drop"].forEach((e) => drop.addEventListener(e, (ev) => {
+    ev.preventDefault(); drop.classList.remove("over");
+  }));
+  drop.addEventListener("drop", (ev) => chooseFile(ev.dataTransfer.files[0]));
+
+  resetBtn.addEventListener("click", () => {
+    selectedFile = null; fileInput.value = ""; fileName.textContent = "";
+    convertBtn.disabled = true; resetBtn.classList.add("hidden");
+    results.classList.add("hidden"); statusEl.classList.add("hidden"); setSteps(-1);
+  });
+
+  convertBtn.addEventListener("click", async () => {
+    if (!selectedFile) return;
+    convertBtn.disabled = true;
+    results.classList.add("hidden");
+    showStatus("Processing&hellip; scanned PDFs can take a while because of OCR.", "", true);
+
+    // The server runs the whole pipeline in one request; animate the steps meanwhile.
+    let current = 0;
+    setSteps(current);
+    stepTimer = setInterval(() => { if (current < steps.length - 2) setSteps(++current); }, 1500);
+
+    const form = new FormData();
+    form.append("file", selectedFile);
+    if (document.getElementById("allTables").checked) form.append("all_tables", "1");
+    try {
+      const res = await fetch("/api/convert", { method: "POST", body: form });
+      const data = await res.json().catch(() => ({ error: `Server error (${res.status})` }));
+      clearInterval(stepTimer);
+      if (!res.ok) throw new Error(data.error || `Server error (${res.status})`);
+      setSteps(0, true);
+      statusEl.classList.add("hidden");
+      renderResults(data);
+      resetBtn.classList.remove("hidden");
+    } catch (err) {
+      clearInterval(stepTimer);
+      setSteps(-1);
+      showStatus(escapeHtml(err.message), "error");
+      convertBtn.disabled = false;
+    }
+  });
+
+  function renderResults(data) {
+    document.getElementById("downloadBtn").href = data.download_url;
+    document.getElementById("downloadBtn").setAttribute("download", data.filename);
+    document.getElementById("resultMeta").textContent =
+      `${data.table_count} table(s) from ${data.pages.length} page(s) in ${data.seconds}s → ` +
+      `${data.filename}, all on one sheet "${data.sheet}"`;
+
+    document.getElementById("warnings").innerHTML =
+      data.warnings.map((w) => `<div class="warn">&#9888; ${escapeHtml(w)}</div>`).join("");
+
+    document.getElementById("pagesBody").innerHTML = data.pages.map((p) => `
+      <tr>
+        <td>${p.page}</td>
+        <td>${p.has_text ? "Yes" : "No (scanned &rarr; OCR)"}</td>
+        <td><span class="badge ${p.has_text ? "" : "ocr"}">${escapeHtml(p.method)}</span></td>
+        <td>${p.tables}</td>
+      </tr>`).join("");
+
+    const pageLabel = (pages) => pages.length > 1
+      ? `Pages ${pages[0]}–${pages[pages.length - 1]}` : `Page ${pages[0]}`;
+
+    document.getElementById("tables").innerHTML = data.blocks.map((t) => `
+      <div class="table-card">
+        <h3>${pageLabel(t.pages)}
+          ${t.methods.map((m) => `<span class="badge ${m.startsWith("ocr") ? "ocr" : ""}">${escapeHtml(m)}</span>`).join("")}
+          <span class="muted">starts at row ${t.start_row} &middot; ${t.rows} rows &times; ${t.cols} cols${t.rows > 10 ? " · showing first 10" : ""}</span>
+        </h3>
+        <div class="scroll"><table>
+          ${t.has_header ? `<thead><tr>${t.preview.columns.map((c) => `<th>${escapeHtml(c)}</th>`).join("")}</tr></thead>` : ""}
+          <tbody>${t.preview.rows.map((r) =>
+            `<tr>${r.map((v) => `<td>${escapeHtml(v)}</td>`).join("")}</tr>`).join("")}</tbody>
+        </table></div>
+      </div>`).join("");
+
+    results.classList.remove("hidden");
+  }
+</script>
+</body>
+</html>

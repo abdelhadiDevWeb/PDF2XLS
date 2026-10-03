@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: pdf2xls
+    runtime: docker
+    plan: free
+    healthCheckPath: /healthz
+    envVars:
+      - key: OCR_LANG
+        value: fra+eng
+      - key: WEB_WORKERS
+        value: "1"
+      - key: APP_PASSWORD
+        sync: false
